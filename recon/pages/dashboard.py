@@ -52,6 +52,24 @@ def _kpis() -> rx.Component:
     )
 
 
+def _card_head(title: str, subtitle: str, right: rx.Component | None = None) -> rx.Component:
+    """Shared card header: title + subtitle on the left, optional slot right."""
+    return rx.hstack(
+        rx.vstack(
+            rx.text(title, font_size="13px", font_weight="600", color=INK),
+            rx.text(subtitle, font_size="11px", color=MUTED),
+            spacing="0",
+            gap="2px",
+            align="start",
+        ),
+        rx.spacer(),
+        right if right is not None else rx.fragment(),
+        width="100%",
+        align="start",
+        flex_shrink="0",
+    )
+
+
 def _severity_card() -> rx.Component:
     legend = [
         ("critical", "Critical", CRIT),
@@ -60,79 +78,95 @@ def _severity_card() -> rx.Component:
         ("low", "Low", LOW),
     ]
     return card(
-        rx.text("Severity mix", font_size="13px", font_weight="600", color=INK),
-        rx.text("distinct CVEs on live assets", font_size="11px", color=MUTED, margin_top="2px"),
-        rx.box(
-            rx.plotly(data=AppState.sev_fig.to(go.Figure),
-                      config={"displayModeBar": False, "responsive": True}),
+        _card_head("Severity mix", "distinct CVEs on live assets"),
+        rx.hstack(
+            rx.box(
+                rx.plotly(data=AppState.sev_fig.to(go.Figure),
+                          config={"displayModeBar": False, "responsive": True}),
+                width="152px",
+                height="152px",
+                flex_shrink="0",
+            ),
+            rx.vstack(
+                *[
+                    rx.hstack(
+                        rx.box(width="7px", height="7px", border_radius="2px", bg=color,
+                               flex_shrink="0"),
+                        rx.text(label, font_size="11px", color=MUTED, white_space="nowrap"),
+                        rx.spacer(),
+                        rx.text(AppState.sev_counts[key].to_string(), font_size="11.5px",
+                                color=INK, font_weight="600", font_family="ui-monospace"),
+                        width="100%",
+                        align="center",
+                        spacing="2",
+                    )
+                    for key, label, color in legend
+                ],
+                spacing="2",
+                width="100%",
+                flex="1",
+                align="start",
+            ),
+            spacing="4",
+            align="center",
             width="100%",
-            margin_top="2px",
+            flex="1",
         ),
-        rx.vstack(
-            *[
-                rx.hstack(
-                    rx.box(width="7px", height="7px", border_radius="2px", bg=color),
-                    rx.text(label, font_size="11px", color=MUTED),
-                    rx.spacer(),
-                    rx.text(AppState.sev_counts[key].to_string(), font_size="11px",
-                            color=INK, font_weight="600", font_family="ui-monospace"),
-                    width="100%",
-                    align="center",
-                    spacing="2",
-                )
-                for key, label, color in legend
-            ],
-            spacing="1",
-            width="100%",
-            margin_top="6px",
-        ),
+        display="flex",
+        flex_direction="column",
         height="100%",
     )
 
 
 def _growth_card() -> rx.Component:
     return card(
-        rx.hstack(
-            rx.vstack(
-                rx.text("Asset growth", font_size="13px", font_weight="600", color=INK),
-                rx.text("exposed services per scan, from stored history",
-                        font_size="11px", color=MUTED),
-                spacing="0",
-                gap="2px",
-                align="start",
-            ),
-            rx.spacer(),
+        _card_head(
+            "Asset growth",
+            "exposed services per scan, from stored history",
             rx.hstack(
                 rx.box(width="6px", height="6px", border_radius="50%", bg=ACCENT),
                 rx.text("services", font_size="10.5px", color=MUTED),
                 spacing="2",
                 align="center",
             ),
-            width="100%",
-            align="start",
         ),
         rx.box(
             rx.plotly(data=AppState.growth_fig.to(go.Figure),
                       config={"displayModeBar": False, "responsive": True}),
             width="100%",
-            margin_top="8px",
+            margin_top="2px",
+            flex="1",
         ),
+        display="flex",
+        flex_direction="column",
         height="100%",
     )
 
 
 def _services_card() -> rx.Component:
     return card(
-        rx.text("Most exposed services", font_size="13px", font_weight="600", color=INK),
-        rx.text("CVE count per endpoint", font_size="11px", color=MUTED, margin_top="2px"),
-        rx.box(
-            rx.plotly(data=AppState.services_fig.to(go.Figure),
-                      config={"displayModeBar": False, "responsive": True}),
-            width="100%",
-            margin_top="8px",
+        _card_head("Most exposed services", "CVE count per endpoint"),
+        rx.cond(
+            AppState.has_services,
+            rx.box(
+                rx.plotly(data=AppState.services_fig.to(go.Figure),
+                          config={"displayModeBar": False, "responsive": True}),
+                width="100%",
+                margin_top="4px",
+            ),
+            rx.box(
+                empty_state("No findings yet", "Correlated CVEs appear here after a scan."),
+                flex="1",
+                display="flex",
+                align_items="center",
+                justify_content="center",
+            ),
         ),
+        display="flex",
+        flex_direction="column",
         height="100%",
     )
+
 
 
 def _change_row(item: dict) -> rx.Component:
@@ -175,19 +209,12 @@ def _change_row(item: dict) -> rx.Component:
 
 def _changes_card() -> rx.Component:
     return card(
-        rx.hstack(
-            rx.vstack(
-                rx.text("Change feed", font_size="13px", font_weight="600", color=INK),
-                rx.text("new exposures, closures and fresh CVEs", font_size="11px", color=MUTED),
-                spacing="0",
-                gap="2px",
-                align="start",
-            ),
-            rx.spacer(),
+        _card_head(
+            "Change feed",
+            "new exposures, closures and fresh CVEs",
             rx.text(AppState.kpis["changes_7d"].to_string() + " events / 7d",
-                    font_size="10.5px", color=MUTED, font_family="ui-monospace"),
-            width="100%",
-            align="start",
+                    font_size="10.5px", color=MUTED, font_family="ui-monospace",
+                    white_space="nowrap"),
         ),
         rx.cond(
             AppState.changes.length() > 0,
@@ -195,12 +222,12 @@ def _changes_card() -> rx.Component:
                 rx.foreach(AppState.changes, _change_row),
                 spacing="0",
                 width="100%",
-                max_height="330px",
-                overflow_y="auto",
-                margin_top="8px",
+                margin_top="4px",
             ),
             empty_state("No changes yet", "Run a scan to populate the diff feed."),
         ),
+        display="flex",
+        flex_direction="column",
         height="100%",
     )
 
@@ -210,11 +237,12 @@ def _asset_row(a: dict) -> rx.Component:
         td(
             rx.hstack(
                 rx.text(a["endpoint"], font_family="ui-monospace", font_size="11.5px",
-                        color=INK, font_weight="500"),
+                        color=INK, font_weight="500", white_space="nowrap"),
                 rx.cond(
                     a["is_new"],
                     rx.box(rx.text("NEW", font_size="8.5px", font_weight="700", color=ACCENT),
-                           bg="#eef2ff", border_radius="4px", padding="2px 4px"),
+                           bg="#eef2ff", border_radius="4px", padding="2px 4px",
+                           flex_shrink="0"),
                     rx.fragment(),
                 ),
                 spacing="2",
@@ -297,6 +325,7 @@ def dashboard_page() -> rx.Component:
             columns="repeat(12, minmax(0, 1fr))",
             spacing="4",
             width="100%",
+            align_items="stretch",
         ),
         rx.grid(
             rx.box(_services_card(), grid_column="span 4"),
@@ -304,6 +333,7 @@ def dashboard_page() -> rx.Component:
             columns="repeat(12, minmax(0, 1fr))",
             spacing="4",
             width="100%",
+            align_items="stretch",
         ),
         _top_assets_card(),
     )

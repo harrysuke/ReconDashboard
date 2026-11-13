@@ -84,7 +84,15 @@ def _credentials() -> rx.Component:
             margin_top="12px",
         ),
         rx.hstack(
-            _label("Default scan mode"),
+            rx.vstack(
+                _label("Default scan mode"),
+                rx.text("Applies to live scopes; demo scopes always replay the "
+                        "synthetic estate.", font_size="11px", color=MUTED),
+                spacing="0",
+                gap="2px",
+                align="start",
+            ),
+            rx.spacer(),
             rx.select.root(
                 rx.select.trigger(font_size="12.5px", height="34px", border_radius="9px",
                                   border=f"1px solid {BORDER}", bg="white", width="150px"),

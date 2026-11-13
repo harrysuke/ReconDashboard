@@ -39,6 +39,7 @@ async def _demo() -> None:
         with session_scope():
             target = Target.create(label="Demo Corp", kind="domain",
                                    value="demo.example.com", schedule="weekly",
+                                   mode="demo",
                                    notes="Synthetic estate for demonstration.")
     await scanner.seed_demo_history(target.id, scans=6, interval_days=7)
     print(f"demo history ready for target #{target.id} (demo.example.com)")

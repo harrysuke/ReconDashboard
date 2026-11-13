@@ -21,6 +21,7 @@ from recon.models import (
     Vulnerability,
     utcnow,
 )
+from recon.services.cve_catalog import severity_for as severity_for_score
 
 SEVERITY_COLORS = {
     "critical": "#dc2626",
@@ -190,6 +191,8 @@ def top_exposed_assets(limit: int = 7) -> list[dict]:
             .limit(limit))
     out = []
     for row in rows:
+        max_cvss = float(row.max_cvss or 0.0)
+        worst = severity_for_score(max_cvss) if row.finding_count else "unknown"
         out.append({
             "endpoint": f"{row.ip}:{row.port}",
             "host": row.hostname or row.ip,
@@ -197,7 +200,9 @@ def top_exposed_assets(limit: int = 7) -> list[dict]:
             "product": row.product_label,
             "target": row.target.display,
             "findings": int(row.finding_count or 0),
-            "max_cvss": float(row.max_cvss or 0.0),
+            "max_cvss": max_cvss,
+            "severity": _sev(worst),
+            "color": SEVERITY_COLORS[_sev(worst)],
             "title": row.title or "-",
         })
     return out

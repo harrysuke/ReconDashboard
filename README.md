@@ -73,6 +73,27 @@ Collection degrades gracefully:
 Progress is written to the `scan_runs` row at each stage, which is why the
 progress bar keeps working even if the browser reconnects mid-scan.
 
+### Scan mode belongs to the target
+
+Each target carries its own `mode` (`live` or `demo`). A demo scope replays the
+synthetic estate generator instead of touching the network — otherwise a scan of
+a reserved hostname such as `demo.example.com` would resolve to nothing and
+close every asset. The Settings default only applies to live scopes, and any
+hostname under an RFC 2606/6761 reserved suffix (`.example`, `.test`,
+`.invalid`, `.localhost`, `.local`) is created as a demo scope automatically.
+
+Demo scopes also advance: each scan continues the synthetic timeline from the
+number of recorded scans, so a repeat run still reveals fresh services and
+occasionally retires one.
+
+### An empty result set never closes the estate
+
+If a live pass collects zero services while the target already has inventory,
+the previous assets are kept and the scan is flagged with a warning. A blocked
+Shodan key, a CT rate limit or a DNS outage looks exactly like "everything was
+decommissioned", and silently wiping the history is the wrong default for a
+recon tool. Closures are only recorded when a scan actually collected something.
+
 ## CVE correlation
 
 Service banners such as `Apache/2.4.49` or `OpenSSH_8.2p1` are parsed into
@@ -125,6 +146,15 @@ python -m scripts.seed demo         # demo estate + backdated history
 python -m scripts.seed add example.com
 python -m scripts.seed scan 1
 python -m scripts.smoke             # end-to-end backend check incl. PDFs
+python -m scripts.verify_modes      # regression: per-target modes + empty-scan guard
+```
+
+Browser-side checks (need a headless Edge/Chrome on port 9222):
+
+```bash
+node scripts/capture_pages.mjs      # screenshot every route into shots/
+node scripts/measure_plots.mjs      # assert each chart matches its card width
+node scripts/e2e_click.mjs http://localhost:3000/ shots   # click-through smoke test
 ```
 
 ## Project layout
@@ -150,7 +180,8 @@ ReconDashboard/
 │       ├── scanner.py        the 5-stage pipeline + diff engine
 │       ├── scheduler.py      APScheduler dispatcher
 │       └── report.py         ReportLab PDFs
-├── scripts/                  seed.py, smoke.py
+├── scripts/                  seed, smoke, verify_modes + CDP browser checks
+├── assets/plotly-fit.js      re-fits Plotly charts to their cards
 └── data/                     recon.db, reports/
 ```
 
@@ -168,6 +199,11 @@ ReconDashboard/
   serialise.
 * **Why change events are append-only** — the diff is the product. Being able to
   answer "what appeared on Tuesday?" is the whole point of storing history.
+* **Why charts need `assets/plotly-fit.js`** — react-plotly mounts its graph div
+  as `display: inline-block` with no width, so Plotly measures 0 and falls back
+  to its 700x450 default, overflowing every card. The script makes the div a
+  block, then calls `Plotly.Plots.resize()` once the parent has a real width.
+  `config.responsive` alone is not enough: it only listens for window resizes.
 
 ## Authorization
 

@@ -13,12 +13,14 @@ from recon.pages.vulns import vulns_page
 from recon.state import AppState
 
 app = rx.App(
-    theme=rx.theme(appearance="light", accent_color="blue", gray_color="slate", radius="large"),
     style={
         "font_family": "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif",
         "color": "#0f172a",
         "background": "#f6f7f9",
     },
+    # Plotly draws at its 700px default when the parent is still zero-width
+    # during hydration; this re-fits every chart to its card.
+    head_components=[rx.script(src="/plotly-fit.js")],
 )
 
 app.add_page(

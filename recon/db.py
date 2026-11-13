@@ -33,6 +33,7 @@ def init_db() -> None:
         db.init(DB_PATH.as_posix(), pragmas=PRAGMAS)
         db.connect(reuse_if_open=True)
         db.create_tables(ALL_MODELS, safe=True)
+        _migrate()
         _initialised = True
 
     defaults = {
@@ -45,6 +46,34 @@ def init_db() -> None:
     with session_scope():
         for key, value in defaults.items():
             Setting.insert(key=key, value=value).on_conflict_ignore().execute()
+
+
+def _migrate() -> None:
+    """Additive schema migration for existing databases.
+
+    ``create_tables(safe=True)`` only creates missing tables - it never touches
+    an existing one. Rather than pulling in a migration framework for a
+    single-file SQLite app, we diff the model against ``pragma table_info`` and
+    emit ``ALTER TABLE ... ADD COLUMN`` for anything new. New columns must be
+    nullable or carry a default, which is exactly what the models do.
+    """
+    for model in ALL_MODELS:
+        table = model._meta.table_name
+        try:
+            present = {col.name for col in db.get_columns(table)}
+        except Exception:  # noqa: BLE001 - table missing means create_tables failed
+            continue
+        for field in model._meta.sorted_fields:
+            if field.column_name in present or field.primary_key:
+                continue
+            column_type = field.field_type
+            ddl = f'ALTER TABLE "{table}" ADD COLUMN "{field.column_name}" {column_type}'
+            default = field.default
+            if isinstance(default, (str, int, float, bool)) and not callable(default):
+                literal = default if not isinstance(default, str) else f"'{default}'"
+                ddl += f" NOT NULL DEFAULT {literal}"
+            db.execute_sql(ddl)
+
 
 
 @contextmanager

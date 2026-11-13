@@ -18,7 +18,18 @@ config = rx.Config(
     app_name="recon",
     frontend_port=3000,
     backend_port=8000,
-    db_url="sqlite:///data/reflex.db",
     telemetry_enabled=False,
     show_built_with_reflex=False,
+    plugins=[
+        rx.plugins.RadixThemesPlugin(
+            theme=rx.theme(
+                appearance="light",
+                accent_color="blue",
+                gray_color="slate",
+                radius="large",
+                scaling="100%",
+            )
+        ),
+    ],
+    disable_plugins=[rx.plugins.SitemapPlugin],
 )

@@ -81,17 +81,19 @@ def _row(a: dict) -> rx.Component:
             rx.hstack(
                 sev_dot(a["severity"]),
                 rx.text(a["endpoint"], font_family="ui-monospace", font_size="11.5px",
-                        color=INK, font_weight="500"),
+                        color=INK, font_weight="500", white_space="nowrap"),
                 rx.cond(
                     a["is_new"],
                     rx.box(rx.text("NEW", font_size="8.5px", font_weight="700", color=ACCENT),
-                           bg="#eef2ff", border_radius="4px", padding="2px 4px"),
+                           bg="#eef2ff", border_radius="4px", padding="2px 4px",
+                           flex_shrink="0"),
                     rx.fragment(),
                 ),
                 spacing="2",
                 align="center",
+                width="100%",
             ),
-            width="190px",
+            width="220px",
         ),
         td(
             rx.vstack(
@@ -155,7 +157,7 @@ def assets_page() -> rx.Component:
                 table_shell(
                     rx.table.header(
                         rx.table.row(
-                            th("Endpoint", width="190px"),
+                            th("Endpoint", width="220px"),
                             th("Host"),
                             th("Service", width="130px"),
                             th("Product"),

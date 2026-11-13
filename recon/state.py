@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import plotly.graph_objects as go
@@ -79,6 +79,7 @@ class AppState(rx.State):
     sev_fig: dict = {}
     growth_fig: dict = {}
     services_fig: dict = {}
+    has_services: bool = False
 
     # ------------------------------------------------------------- filters
     asset_target: str = "all"
@@ -163,7 +164,7 @@ class AppState(rx.State):
         self.kpis = queries.dashboard_kpis()
         self.sev_counts = queries.severity_distribution()
         self.growth = queries.asset_growth()
-        self.changes = queries.recent_changes()
+        self.changes = queries.recent_changes(limit=6)
         self.top_assets = queries.top_exposed_assets()
         self.targets = queries.list_targets()
         self.target_options = queries.target_options()
@@ -211,13 +212,14 @@ class AppState(rx.State):
                 hovertemplate="%{label}: %{value} CVEs<extra></extra>",
             ))
         fig.update_layout(**_base_layout(
-            height=210,
+            height=158,
+            margin=dict(l=0, r=0, t=0, b=0),
             showlegend=False,
             annotations=[
-                dict(text=f"<b>{total}</b>", x=0.5, y=0.55, showarrow=False,
-                     font=dict(size=26, color=INK)),
-                dict(text="distinct CVEs", x=0.5, y=0.38, showarrow=False,
-                     font=dict(size=10, color=MUTED)),
+                dict(text=f"<b>{total}</b>", x=0.5, y=0.56, showarrow=False,
+                     font=dict(size=23, color=INK)),
+                dict(text="distinct CVEs", x=0.5, y=0.36, showarrow=False,
+                     font=dict(size=9.5, color=MUTED)),
             ],
         ))
         return _fig(fig)
@@ -242,13 +244,29 @@ class AppState(rx.State):
                 fill="tozeroy" if idx == 0 else None,
                 fillcolor="rgba(29,78,216,0.07)" if idx == 0 else None,
                 hovertemplate="%{y} exposed services<extra></extra>",
+                # The first and last points sit exactly on the axis edges; without
+                # this their markers are sliced in half by the plot clip rect.
+                cliponaxis=False,
             ))
+        xaxis = dict(showgrid=False, zeroline=False, tickfont=dict(size=10),
+                     linecolor=GRID, ticks="outside", tickcolor=GRID)
+        # Pad the date axis so the outermost tick labels are not pinned to the
+        # plot border (Plotly adds no padding of its own for date axes here).
+        days = sorted({p["date"] for s in self.growth for p in (s.get("points") or [])})
+        if len(days) > 1:
+            try:
+                first = date.fromisoformat(days[0])
+                last = date.fromisoformat(days[-1])
+                pad = max(1, int((last - first).days * 0.04))
+                xaxis["range"] = [(first - timedelta(days=pad)).isoformat(),
+                                  (last + timedelta(days=pad)).isoformat()]
+            except ValueError:
+                pass
         fig.update_layout(**_base_layout(
             height=260,
             showlegend=len(self.growth) > 1,
             legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, font=dict(size=10)),
-            xaxis=dict(showgrid=False, zeroline=False, tickfont=dict(size=10),
-                       linecolor=GRID, ticks="outside", tickcolor=GRID),
+            xaxis=xaxis,
             yaxis=dict(showgrid=True, gridcolor="#f1f5f9", zeroline=False,
                        tickfont=dict(size=10), rangemode="tozero"),
             hovermode="x unified",
@@ -258,6 +276,7 @@ class AppState(rx.State):
     def _build_services_figure(self) -> dict:
         rows = queries.top_exposed_assets(limit=6)
         rows = [r for r in rows if r["findings"] > 0]
+        self.has_services = bool(rows)
         fig = go.Figure()
         if not rows:
             fig.add_annotation(text="No findings yet", showarrow=False,
@@ -266,7 +285,7 @@ class AppState(rx.State):
             rows = list(reversed(rows))
             fig.add_trace(go.Bar(
                 x=[r["findings"] for r in rows],
-                y=[f'{r["service"]} · :{r["endpoint"].split(":")[-1]}' for r in rows],
+                y=[_endpoint_label(r) for r in rows],
                 orientation="h",
                 marker=dict(color=[SEVERITY_COLORS_BY_SCORE(r["max_cvss"]) for r in rows],
                             line=dict(width=0)),
@@ -274,14 +293,18 @@ class AppState(rx.State):
                 text=[r["findings"] for r in rows],
                 textposition="outside",
                 textfont=dict(size=10, color=MUTED),
+                width=0.55,
             ))
+        max_findings = max((r["findings"] for r in rows), default=1)
         fig.update_layout(**_base_layout(
-            height=250,
+            height=262,
+            margin=dict(l=6, r=28, t=8, b=4),
             showlegend=False,
             xaxis=dict(showgrid=True, gridcolor="#f1f5f9", zeroline=False,
-                       tickfont=dict(size=10), title=None),
-            yaxis=dict(showgrid=False, zeroline=False, tickfont=dict(size=10)),
-            bargap=0.45,
+                       tickfont=dict(size=9.5), title=None, showticklabels=False,
+                       dtick=1, range=[0, max_findings + 0.7]),
+            yaxis=dict(showgrid=False, zeroline=False, tickfont=dict(size=10.5),
+                       automargin=True, ticks=""),
         ))
         return _fig(fig)
 
@@ -290,10 +313,15 @@ class AppState(rx.State):
     async def load_dashboard(self):
         init_db()
         scheduler.start()
-        if not self.booted and Target.select().count() == 0:
+        # Seed the sample estate on a database that has never held a target.
+        # The flag (rather than an in-memory "booted" bool) means a database
+        # reset re-seeds, while a user who deliberately deletes their last
+        # target is left alone - their intent survives a page reload.
+        if Target.select().count() == 0 and get_setting("demo_seeded", "") != "1":
             self.booting = True
             await self._bootstrap_demo()
             self.booting = False
+            set_setting("demo_seeded", "1")
         self._refresh_data()
         self.last_refresh = datetime.now().strftime("%H:%M:%S")
         self.booted = True
@@ -351,6 +379,7 @@ class AppState(rx.State):
                 kind="domain",
                 value="demo.example.com",
                 schedule="weekly",
+                mode="demo",
                 notes="Sample estate generated in demo mode - safe to delete.",
             )
             target_id = target.id
@@ -432,6 +461,7 @@ class AppState(rx.State):
                 kind=kind,
                 value=raw,
                 schedule=self.new_schedule or "manual",
+                mode="demo" if _is_reserved(raw) else "live",
                 notes="",
             )
         self.new_target = ""
@@ -479,7 +509,9 @@ class AppState(rx.State):
                 self._toast("A scan is already running for this target", "warning")
             return
 
-        run_mode = get_setting("default_mode", "live")
+        # The target's own mode wins over the global default, so demo scopes are
+        # always replayed from the synthetic generator instead of being probed.
+        run_mode = (target.mode or "").strip() or get_setting("default_mode", "live")
         with session_scope():
             scan = ScanRun.create(
                 target=target_id, mode=run_mode, trigger="manual",
@@ -527,6 +559,7 @@ class AppState(rx.State):
             with session_scope():
                 target = Target.create(label="Demo Corp", kind="domain",
                                        value="demo.example.com", schedule="weekly",
+                                       mode="demo",
                                        notes="Sample estate generated in demo mode.")
         await scanner.seed_demo_history(target.id, scans=6, interval_days=7)
         self._refresh_data()
@@ -610,6 +643,7 @@ class AppState(rx.State):
     @rx.event
     def reset_all(self):
         reset_database()
+        self.booted = False
         self._refresh_data()
         self.db_info = db_stats()
         self._toast("Database reset", "warning")
@@ -625,6 +659,23 @@ class AppState(rx.State):
 # --------------------------------------------------------------------------- #
 # helpers used by the state
 # --------------------------------------------------------------------------- #
+def _endpoint_label(row: dict) -> str:
+    """Compact axis label for an asset: host (or last octet) + port.
+
+    ``service:port`` repeats itself when several hosts expose the same port, so
+    the chart would show three identical ``http:8080`` rows. The hostname's
+    first label identifies the endpoint far better and stays short enough for a
+    narrow card.
+    """
+    ip, _, port = row["endpoint"].rpartition(":")
+    host = (row.get("host") or "").strip()
+    if not host or host == ip:
+        host = ip.rsplit(".", 1)[-1] if "." in ip else ip
+    else:
+        host = host.split(".")[0]
+    return f"{host}:{port}"
+
+
 def SEVERITY_COLORS_BY_SCORE(cvss: float) -> str:  # noqa: N802 - used as a palette helper
     if cvss >= 9:
         return SEV_COLORS["critical"]
@@ -653,3 +704,16 @@ def _looks_like_cidr(value: str) -> bool:
 
 def _looks_like_domain(value: str) -> bool:
     return bool(_DOMAIN_RE.match(value))
+
+
+# RFC 2606 / RFC 6761 reserved names never resolve on the public internet, so a
+# live pass against them can only ever return nothing. Treat them as demo scopes.
+_RESERVED_SUFFIXES = (
+    ".example", ".example.com", ".example.net", ".example.org",
+    ".test", ".invalid", ".localhost", ".local",
+)
+
+
+def _is_reserved(value: str) -> bool:
+    host = value.split(":")[0].strip(".")
+    return any(host == s.lstrip(".") or host.endswith(s) for s in _RESERVED_SUFFIXES)

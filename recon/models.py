@@ -50,6 +50,10 @@ class Target(BaseModel):
     value = pw.CharField(max_length=255, unique=True, index=True)
     enabled = pw.BooleanField(default=True)
     schedule = pw.CharField(max_length=16, default="manual")  # manual|daily|weekly
+    # demo targets are backed by the synthetic estate generator; a live pass
+    # against a reserved demo hostname would collect nothing and close every
+    # asset, so the mode travels with the target rather than the scan request.
+    mode = pw.CharField(max_length=16, default="live")  # live|demo
     notes = pw.TextField(default="")
 
     created_at = pw.DateTimeField(default=utcnow)

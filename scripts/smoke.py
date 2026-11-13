@@ -29,7 +29,7 @@ async def main() -> None:
     if target is None:
         with session_scope():
             target = Target.create(label="Demo Corp", kind="domain", value="demo.example.com",
-                                   schedule="weekly", notes="smoke test")
+                                   schedule="weekly", mode="demo", notes="smoke test")
     target_id = target.id
 
     with session_scope():

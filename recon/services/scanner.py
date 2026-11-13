@@ -116,7 +116,13 @@ async def _collect(
         subdomains = demo.demo_subdomains(target.value)
         await asyncio.sleep(0.1)
         _set_progress(scan_id, "shodan", "Building demo service inventory")
-        assets = demo.build_demo_assets(target.value, scan_index=99)
+        # Continue the timeline where the recorded history stopped, so repeated
+        # demo scans keep revealing new services instead of replaying a snapshot.
+        done = (ScanRun
+                .select()
+                .where(ScanRun.target_id == target.id, ScanRun.status == "success")
+                .count())
+        assets = demo.build_demo_assets(target.value, scan_index=max(0, done))
         await asyncio.sleep(0.1)
         return assets, subdomains, warnings
 
@@ -206,9 +212,15 @@ def _dedupe(raws: Iterable[RawAsset]) -> list[RawAsset]:
 # persistence + diff
 # --------------------------------------------------------------------------- #
 def _persist_assets(
-    target_id: int, scan_id: int, raws: list[RawAsset]
+    target_id: int, scan_id: int, raws: list[RawAsset], *, close_missing: bool = True
 ) -> tuple[list[Asset], list[str], list[str]]:
-    """Upsert assets; return (new_assets, closed_keys, changed_keys)."""
+    """Upsert assets; return (new_assets, closed_keys, changed_keys).
+
+    ``close_missing=False`` keeps the previous inventory active. A scan that
+    collected nothing is far more likely to have been blocked (missing Shodan
+    key, CT rate limit, DNS outage) than to mean the whole estate vanished, so
+    the caller disables closure in that case instead of destroying history.
+    """
     new_assets: list[Asset] = []
     closed_keys: list[str] = []
     changed_keys: list[str] = []
@@ -271,7 +283,7 @@ def _persist_assets(
             ).where(Asset.id == asset.id).execute())
 
         for key, asset in existing.items():
-            if key not in seen and asset.is_active:
+            if key not in seen and asset.is_active and close_missing:
                 (Asset.update(is_active=False).where(Asset.id == asset.id).execute())
                 closed_keys.append(key)
 
@@ -384,7 +396,9 @@ async def run_scan(
         raise ValueError(f"target {target_id} not found")
 
     if mode is None:
-        mode = get_setting("default_mode", "live")
+        # The target decides: a demo scope must never be probed live, otherwise
+        # the pass collects nothing and closes the whole synthetic estate.
+        mode = (target.mode or "").strip() or get_setting("default_mode", "live")
     if probe_enabled is None:
         probe_enabled = get_setting("probe_enabled", "1") == "1"
     max_hosts = int(get_setting("max_hosts", "64") or 64)
@@ -412,7 +426,18 @@ async def run_scan(
         raws = _dedupe(raws)
         _set_progress(scan_id, "diff", f"{len(raws)} unique services discovered")
 
-        new_assets, closed_keys, changed_keys = _persist_assets(target_id, scan_id, raws)
+        # Guard: an empty result set must not be read as "everything was
+        # decommissioned". Keep the inventory and flag the pass instead.
+        collected = bool(raws)
+        if not collected and _active_assets(target_id):
+            warnings.append(
+                "Scan collected no services - previous inventory retained "
+                "(check API keys, DNS and rate limits)"
+            )
+
+        new_assets, closed_keys, changed_keys = _persist_assets(
+            target_id, scan_id, raws, close_missing=collected
+        )
 
         # --- CVE enrichment ------------------------------------------------
         _set_progress(scan_id, "cve", "Correlating service versions with known CVEs")
@@ -505,6 +530,17 @@ async def seed_demo_history(target_id: int, scans: int = 6, interval_days: int =
     if target is None:
         return
     value = target.value
+
+    # Regenerating the demo must not stack a second timeline on top of the
+    # first, so clear this target's derived rows before replaying it.
+    with session_scope():
+        asset_ids = [a.id for a in Asset.select(Asset.id).where(Asset.target_id == target_id)]
+        if asset_ids:
+            (AssetVulnerability.delete()
+             .where(AssetVulnerability.asset.in_(asset_ids)).execute())
+        ChangeEvent.delete().where(ChangeEvent.target == target_id).execute()
+        Asset.delete().where(Asset.target_id == target_id).execute()
+        ScanRun.delete().where(ScanRun.target_id == target_id).execute()
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     service = CveService(network=False)

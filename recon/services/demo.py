@@ -65,7 +65,8 @@ def plan_estate(value: str) -> list[dict]:
     rng = random.Random(_seed(value))
     is_ip_scope = value.replace(".", "").replace("/", "").isdigit()
 
-    count = rng.randint(9, 16)
+    count = rng.randint(10, 16)
+    baseline = min(6, count)
     plan: list[dict] = []
     used: set[str] = set()
 
@@ -95,13 +96,25 @@ def plan_estate(value: str) -> list[dict]:
                 "tls": tls,
                 "ip": ip,
                 "hostname": hostname,
-                # Staggered introduction so growth is visible across the seeded
-                # history; the final asset only shows up in the live demo scan,
-                # which is what makes "new assets" non-empty on first click.
-                "appears_at": 0 if idx < 6 else (5 if idx == count - 1 else 1 + (idx % 4)),
-                "disappears_at": 5 if idx == count - 2 and count > 11 else None,
+                "appears_at": 0,
+                "disappears_at": None,
             }
         )
+
+    # Arrival schedule. The first ``baseline`` assets form the estate the seeded
+    # history starts from; the rest trickle in across scan indices 1..9, so a
+    # manual demo scan (which continues from the last recorded index) still
+    # reveals a couple of fresh services instead of replaying a frozen snapshot.
+    tail = list(range(baseline, count))
+    for pos, idx in enumerate(tail):
+        span = max(1, len(tail) - 1)
+        plan[idx]["appears_at"] = 1 + (pos * 8) // span
+
+    # One long-lived box is decommissioned mid-timeline so the diff engine has a
+    # closure to report as well.
+    if count > 11:
+        plan[baseline - 1]["disappears_at"] = 7
+
     return plan
 
 
