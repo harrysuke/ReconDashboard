@@ -205,6 +205,12 @@ ReconDashboard/
   to its 700x450 default, overflowing every card. The script makes the div a
   block, then calls `Plotly.Plots.resize()` once the parent has a real width.
   `config.responsive` alone is not enough: it only listens for window resizes.
+* **Why figures are built lazily** — plotly parses a 3 MB validator JSON on its
+  first `Figure()`, which blocks the calling thread for ~0.4s. `_refresh_data`
+  therefore takes `with_figures=False` by default and only the dashboard opts
+  in, so `/targets` and `/assets` never pay that cost. `recon/recon.py` also
+  warms the cache in a background thread at startup. Figure builds are wrapped
+  in `_safe_figure`, because a plotting failure must not blank a whole page.
 
 ## Authorization
 

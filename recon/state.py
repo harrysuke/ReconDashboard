@@ -16,12 +16,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import plotly.graph_objects as go
 import reflex as rx
+
+log = logging.getLogger(__name__)
 
 from recon import queries
 from recon.db import (
@@ -159,8 +162,15 @@ class AppState(rx.State):
         return "#059669"
 
     # ------------------------------------------------------------- helpers
-    def _refresh_data(self) -> None:
-        """Recompute every read model. Call inside the state lock."""
+    def _refresh_data(self, *, with_figures: bool = False) -> None:
+        """Recompute the read models.
+
+        Figures are opt-in: only the dashboard renders them, and building them
+        is by far the slowest part of a page load (plotly parses a 3 MB
+        validator JSON on first use, which blocks the event loop for ~0.4s).
+        Pages that show no charts must not pay that cost - it used to stall
+        /targets badly enough for typing to feel unresponsive.
+        """
         self.kpis = queries.dashboard_kpis()
         self.sev_counts = queries.severity_distribution()
         self.growth = queries.asset_growth()
@@ -180,9 +190,38 @@ class AppState(rx.State):
         )
         self.scans = queries.list_scans()
         self.recent_cves = queries.list_findings(limit=120)
-        self.sev_fig = self._build_severity_figure()
-        self.growth_fig = self._build_growth_figure()
-        self.services_fig = self._build_services_figure()
+        if with_figures:
+            self._refresh_figures()
+
+    def _refresh_figures(self) -> None:
+        self.sev_fig = self._safe_figure(self._build_severity_figure, "severity mix")
+        self.growth_fig = self._safe_figure(self._build_growth_figure, "asset growth")
+        self.services_fig = self._safe_figure(self._build_services_figure,
+                                              "exposed services")
+
+    @staticmethod
+    def _safe_figure(builder, name: str) -> dict:
+        """Build a figure without letting a plotting failure break the page.
+
+        Charts are decorative next to the data tables: if plotly raises, show a
+        placeholder rather than failing the whole event handler, which would
+        leave the page blank and unresponsive.
+        """
+        try:
+            return builder()
+        except Exception as exc:  # noqa: BLE001 - charts must never be fatal
+            log.warning("could not build the %s figure: %s", name, exc)
+            return {"data": [], "layout": {
+                "height": 160,
+                "margin": {"l": 0, "r": 0, "t": 0, "b": 0},
+                "paper_bgcolor": "rgba(0,0,0,0)",
+                "plot_bgcolor": "rgba(0,0,0,0)",
+                "xaxis": {"visible": False},
+                "yaxis": {"visible": False},
+                "annotations": [{"text": "chart unavailable", "showarrow": False,
+                                 "font": {"size": 11, "color": MUTED},
+                                 "x": 0.5, "y": 0.5}],
+            }}
 
     def _asset_pid(self) -> int | None:
         return None if self.asset_target == "all" else int(self.asset_target)
@@ -322,7 +361,7 @@ class AppState(rx.State):
             await self._bootstrap_demo()
             self.booting = False
             set_setting("demo_seeded", "1")
-        self._refresh_data()
+        self._refresh_data(with_figures=True)
         self.last_refresh = datetime.now().strftime("%H:%M:%S")
         self.booted = True
 
@@ -351,7 +390,7 @@ class AppState(rx.State):
         )
         self.target_options = queries.target_options()
         self.sev_counts = queries.severity_distribution()
-        self.sev_fig = self._build_severity_figure()
+        self.sev_fig = self._safe_figure(self._build_severity_figure, "severity mix")
 
     @rx.event
     def load_scans(self):
@@ -544,7 +583,8 @@ class AppState(rx.State):
             self.scan_stage = state["stage"]
             self.scan_message = state["message"]
             self.scan_status = state["status"]
-            self._refresh_data()
+            # A scan changes the charts, so rebuild them wherever it was started.
+            self._refresh_data(with_figures=True)
             if state["status"] == "success":
                 self._toast(f"Scan finished for {target.display}", "success")
             else:

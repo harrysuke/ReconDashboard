@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+
 import reflex as rx
 
 from recon.pages.assets import assets_page
@@ -11,6 +13,29 @@ from recon.pages.settings import settings_page
 from recon.pages.targets import targets_page
 from recon.pages.vulns import vulns_page
 from recon.state import AppState
+
+
+def _prewarm_plotly() -> None:
+    """Parse plotly's 3 MB validator JSON off the event loop.
+
+    plotly loads it lazily on the first ``Figure()``, which blocks whichever
+    thread gets there first - normally the dashboard's load handler, stalling
+    the first paint for ~0.4s. Doing it once in the background at import makes
+    that cost invisible.
+    """
+
+    def run() -> None:
+        try:
+            import plotly.graph_objects as go
+
+            go.Figure().to_json()
+        except Exception:  # noqa: BLE001 - a cold cache is not worth failing over
+            pass
+
+    threading.Thread(target=run, name="plotly-prewarm", daemon=True).start()
+
+
+_prewarm_plotly()
 
 app = rx.App(
     style={

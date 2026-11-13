@@ -79,6 +79,28 @@ await sleep(600);
 const typed = await evalJs(`document.querySelector('input[placeholder*="203.0.113.10"]').value`);
 console.log("field value after typing:", JSON.stringify(typed));
 
+// --- choose "Manual" from the schedule select -----------------------------
+const opened = await evalJs(`(() => {
+  const trigger = document.querySelector('[role="combobox"]');
+  if (!trigger) return false;
+  trigger.click();
+  return true;
+})()`);
+await sleep(700);
+
+const picked = await evalJs(`(() => {
+  const opts = [...document.querySelectorAll('[role="option"]')];
+  const manual = opts.find((o) => o.textContent.trim() === "Manual");
+  if (!manual) return "options=" + JSON.stringify(opts.map((o) => o.textContent.trim()));
+  manual.click();
+  return "clicked";
+})()`);
+await sleep(700);
+const scheduleShown = await evalJs(
+  `document.querySelector('[role="combobox"]')?.textContent.trim()`
+);
+console.log("schedule select:", JSON.stringify({ opened, picked, scheduleShown }));
+
 // --- click "Add target" ---------------------------------------------------
 const clicked = await evalJs(`(() => {
   const btn = [...document.querySelectorAll('button')]
