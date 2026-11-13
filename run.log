@@ -1,0 +1,102 @@
+Warning: `reflex_base.plugins.sitemap.SitemapPlugin` plugin is enabled by 
+default, but not explicitly added to the config. If you want to use it, please 
+add it to the `plugins` list in your config inside of `rxconfig.py`. To disable
+this plugin, add `SitemapPlugin` to the `disable_plugins` list.
+───────────────────────────── Initializing recon ──────────────────────────────
+Info: Initializing the web directory.
+Success: Initialized recon. Install dependencies from `requirements.txt` with 
+`uv pip install -r requirements.txt` (or your preferred installer) before 
+running `uv run reflex run`.
+Warning: `reflex_base.plugins.sitemap.SitemapPlugin` plugin is enabled by 
+default, but not explicitly added to the config. If you want to use it, please 
+add it to the `plugins` list in your config inside of `rxconfig.py`. To disable
+this plugin, add `SitemapPlugin` to the `disable_plugins` list.
+───────────────────────────── Starting Reflex App ─────────────────────────────
+Warning: `reflex_base.plugins.sitemap.SitemapPlugin` plugin is enabled by 
+default, but not explicitly added to the config. If you want to use it, please 
+add it to the `plugins` list in your config inside of `rxconfig.py`. To disable
+this plugin, add `SitemapPlugin` to the `disable_plugins` list.
+Warning: `reflex_base.plugins.sitemap.SitemapPlugin` plugin is enabled by 
+default, but not explicitly added to the config. If you want to use it, please 
+add it to the `plugins` list in your config inside of `rxconfig.py`. To disable
+this plugin, add `SitemapPlugin` to the `disable_plugins` list.
+Traceback (most recent call last):
+  File "C:\Users\jpbuser\Documents\Cybersecurity\ReconDashboard\.venv\Lib\site-packages\reflex\utils\prerequisites.py", line 427, in compile_or_validate_app
+    get_compiled_app(
+    ~~~~~~~~~~~~~~~~^
+        check_if_schema_up_to_date=check_if_schema_up_to_date,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        prerender_routes=prerender_routes,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        trigger=trigger,
+        ^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\jpbuser\Documents\Cybersecurity\ReconDashboard\.venv\Lib\site-packages\reflex\utils\prerequisites.py", line 336, in get_compiled_app
+    app._compile(
+    ~~~~~~~~~~~~^
+        prerender_routes=prerender_routes,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        trigger=trigger,
+        ^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\jpbuser\Documents\Cybersecurity\ReconDashboard\.venv\Lib\site-packages\reflex\app.py", line 2144, in _compile
+    compiler.compile_app(
+    ~~~~~~~~~~~~~~~~~~~~^
+        self,
+        ^^^^^
+    ...<3 lines>...
+        compile_initial_state=compile_initial_state,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\jpbuser\Documents\Cybersecurity\ReconDashboard\.venv\Lib\site-packages\reflex\compiler\compiler.py", line 1307, in compile_app
+    compiler_plugins, radix_themes_plugin = _resolve_radix_themes_plugin(
+                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        app,
+        ^^^^
+        config.plugins,
+        ^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\jpbuser\Documents\Cybersecurity\ReconDashboard\.venv\Lib\site-packages\reflex\compiler\compiler.py", line 1192, in _resolve_radix_themes_plugin
+    radix_plugin.apply_app_theme(app.theme)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\jpbuser\Documents\Cybersecurity\ReconDashboard\.venv\Lib\site-packages\reflex_components_radix\plugin.py", line 104, in apply_app_theme
+    console.deprecate(
+    ~~~~~~~~~~~~~~~~~^
+        feature_name="App(theme=...)",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        removal_version=_REMOVAL_VERSION,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\jpbuser\Documents\Cybersecurity\ReconDashboard\.venv\Lib\site-packages\reflex_base\utils\console.py", line 311, in deprecate
+    _log.deprecate(
+    ~~~~~~~~~~~~~~^
+        feature_name=feature_name,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        **kwargs,
+        ^^^^^^^^^
+    )
+    ^
+  File "C:\Users\jpbuser\Documents\Cybersecurity\ReconDashboard\.venv\Lib\site-packages\reflex_base\utils\log.py", line 902, in deprecate
+    origin_frame = _get_first_non_framework_frame()
+  File "C:\Users\jpbuser\Documents\Cybersecurity\ReconDashboard\.venv\Lib\site-packages\reflex_base\utils\log.py", line 870, in _get_first_non_framework_frame
+    if not _is_framework_filename(frame.f_code.co_filename):
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\jpbuser\Documents\Cybersecurity\ReconDashboard\.venv\Lib\site-packages\reflex_base\utils\log.py", line 863, in _is_framework_filename
+    frame_path.is_relative_to(root) for root in _exclude_paths_from_frame_info()
+                                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\jpbuser\Documents\Cybersecurity\ReconDashboard\.venv\Lib\site-packages\reflex_base\utils\decorator.py", line 29, in wrapper
+    value = f() if value is unset else value
+            ~^^
+  File "C:\Users\jpbuser\Documents\Cybersecurity\ReconDashboard\.venv\Lib\site-packages\reflex_base\utils\log.py", line 792, in _exclude_paths_from_frame_info
+    import granian
+  File "C:\Users\jpbuser\Documents\Cybersecurity\ReconDashboard\.venv\Lib\site-packages\granian\__init__.py", line 1, in <module>
+    from ._granian import __version__
+ImportError: DLL load failed while importing _granian: An Application Control policy has blocked this file.
