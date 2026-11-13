@@ -154,6 +154,7 @@ Browser-side checks (need a headless Edge/Chrome on port 9222):
 ```bash
 node scripts/capture_pages.mjs      # screenshot every route into shots/
 node scripts/measure_plots.mjs      # assert each chart matches its card width
+node scripts/e2e_add_target.mjs     # fill the Add-a-scope form and submit it
 node scripts/e2e_click.mjs http://localhost:3000/ shots   # click-through smoke test
 ```
 

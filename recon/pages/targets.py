@@ -56,7 +56,12 @@ def _add_form() -> rx.Component:
                 rx.text("Scope", font_size="10.5px", color=MUTED, font_weight="500"),
                 rx.el.input(
                     placeholder="example.com  ·  10.0.0.0/24  ·  203.0.113.10",
-                    default_value=AppState.new_target,
+                    # Controlled: the state var is the single source of truth.
+                    # With default_value React only set this on mount, so a
+                    # missed change event left the field showing text that
+                    # add_target could not see - producing "Enter a domain..."
+                    # for a visibly filled form.
+                    value=AppState.new_target,
                     on_change=AppState.set_new_target,
                     width="100%",
                     height="34px",
@@ -80,7 +85,7 @@ def _add_form() -> rx.Component:
                 rx.text("Label (optional)", font_size="10.5px", color=MUTED, font_weight="500"),
                 rx.el.input(
                     placeholder="Production estate",
-                    default_value=AppState.new_label,
+                    value=AppState.new_label,
                     on_change=AppState.set_new_label,
                     width="100%",
                     height="34px",

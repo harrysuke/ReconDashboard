@@ -438,8 +438,7 @@ class AppState(rx.State):
     @rx.event
     def add_target(self):
         init_db()
-        raw = (self.new_target or "").strip().lower()
-        raw = re.sub(r"^https?://", "", raw).strip("/")
+        raw = _normalise_scope(self.new_target or "")
         if not raw:
             self.form_error = "Enter a domain, IP or CIDR range."
             return
@@ -712,6 +711,17 @@ _RESERVED_SUFFIXES = (
     ".example", ".example.com", ".example.net", ".example.org",
     ".test", ".invalid", ".localhost", ".local",
 )
+
+# Zero-width joiners and friends survive strip() but fail the domain regex, which
+# is a confusing way to reject a scope the user copied from a web page.
+_INVISIBLE = dict.fromkeys(map(ord, "\u200b\u200c\u200d\ufeff"), None)
+
+
+def _normalise_scope(value: str) -> str:
+    """Lowercase a scope and drop anything invisible or decorative around it."""
+    text = value.translate(_INVISIBLE).replace("\u00a0", " ").strip().lower()
+    text = re.sub(r"^https?://", "", text)
+    return text.strip("/").strip()
 
 
 def _is_reserved(value: str) -> bool:
